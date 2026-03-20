@@ -1,40 +1,20 @@
 # Astra
 
-Astra is an artifact-first, schema-centric, effect-aware, workflow-native language and toolchain draft for AI-native software development.
+Astra is a draft programming language and toolchain for AI-Native Artifact-Driven Architecture.
 
-## Repository goals
+## Current repository state
 
-This repository is an early draft of:
+This repository currently contains:
 
-- the Astra language vision
-- core syntax and semantics
-- artifact model
-- effect model
-- workflow model
-- compiler pipeline
-- example modules
-- a minimal toolchain skeleton
-
-## Current status
-
-This is a draft repository, not a production-ready compiler.
-
-Implemented in this draft:
-
-- documentation for the language direction
-- RFC-style design notes
-- example `.astra` module
-- Python prototype toolchain skeleton:
-  - AST model
-  - tokenizer
-  - minimal parser for a subset of Astra
-  - CLI entry point
+- language vision and design drafts
+- RFC-style specification files
+- a sample `.astra` module
+- a Python prototype for tokenizer, parser, binder, and diagnostics
 
 ## Repository layout
 
 ```text
 Astra/
-  README.md
   docs/
   specs/
   examples/
@@ -43,34 +23,40 @@ Astra/
   tests/
 ```
 
-## Minimal prototype usage
+## Prototype commands
 
-From the repository root:
+Parse an Astra file:
 
 ```bash
 python -m toolchain.parser.cli examples/users/users.astra
 ```
 
-The current parser prototype recognizes a small subset of the language:
+Parse + bind + emit diagnostics:
+
+```bash
+python -m toolchain.compiler.cli examples/users/users.astra
+```
+
+Run tests:
+
+```bash
+python -m pytest
+```
+
+## Supported prototype grammar
+
+Current prototype can parse these artifact kinds:
 
 - `module`
 - `schema`
+- `enum`
+- `capability`
 - `command`
 - `event`
 - `query`
-- `enum`
-- fields in block declarations
+- `policy`
+- `workflow`
+- `handle`
+- `fn`
 
-## Near-term roadmap
-
-1. Expand grammar coverage
-2. Add binder and symbol table
-3. Add type checker
-4. Add effect analysis
-5. Build artifact graph
-6. Add JSON/OpenAPI emitters
-
-## Positioning
-
-Astra is not centered on OOP/SOLID.
-It is centered on artifacts, contracts, schemas, workflows, policies, effects, and AI-safe evolution.
+This is still an early draft and not a stable language implementation.

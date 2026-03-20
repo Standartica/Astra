@@ -1,7 +1,13 @@
-# Tests
+# Astra tests
 
-Planned:
+Current automated coverage targets:
 
-- parser unit tests
-- tokenizer tests
-- fixture-based language examples
+- tokenizer smoke tests
+- parser smoke tests
+- binder diagnostics smoke tests
+
+Run from repository root:
+
+```bash
+python -m pytest
+```

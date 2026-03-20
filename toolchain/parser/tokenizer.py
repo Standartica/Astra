@@ -12,8 +12,37 @@ class Token:
     column: int
 
 
-KEYWORDS = {"module", "schema", "command", "event", "query", "enum"}
-SINGLE_CHAR = {"{": "LBRACE", "}": "RBRACE", ":": "COLON"}
+KEYWORDS = {
+    "module",
+    "schema",
+    "command",
+    "event",
+    "query",
+    "enum",
+    "capability",
+    "policy",
+    "require",
+    "workflow",
+    "step",
+    "timeout",
+    "deterministic",
+    "handle",
+    "with",
+    "effects",
+    "fn",
+    "pure",
+}
+SINGLE_CHAR = {
+    "{": "LBRACE",
+    "}": "RBRACE",
+    ":": "COLON",
+    "(": "LPAREN",
+    ")": "RPAREN",
+    "[": "LBRACKET",
+    "]": "RBRACKET",
+    ",": "COMMA",
+}
+DOUBLE_CHAR = {"->": "ARROW"}
 
 
 def tokenize(source: str) -> Iterator[Token]:
@@ -40,6 +69,30 @@ def tokenize(source: str) -> Iterator[Token]:
             while i < n and source[i] != "\n":
                 i += 1
                 col += 1
+            continue
+
+        if ch == "/" and i + 1 < n and source[i + 1] == "*":
+            i += 2
+            col += 2
+            while i + 1 < n and not (source[i] == "*" and source[i + 1] == "/"):
+                if source[i] == "\n":
+                    line += 1
+                    col = 1
+                    i += 1
+                else:
+                    i += 1
+                    col += 1
+            if i + 1 >= n:
+                raise SyntaxError(f"Unterminated block comment at {line}:{col}")
+            i += 2
+            col += 2
+            continue
+
+        if i + 1 < n and source[i : i + 2] in DOUBLE_CHAR:
+            value = source[i : i + 2]
+            yield Token(DOUBLE_CHAR[value], value, line, col)
+            i += 2
+            col += 2
             continue
 
         if ch in SINGLE_CHAR:

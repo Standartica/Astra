@@ -3,7 +3,7 @@ module users
 schema User {
   id: UserId
   email: Email
-  name: NonEmptyString
+  name: String
   status: UserStatus
 }
 
@@ -13,9 +13,12 @@ enum UserStatus {
   Suspended
 }
 
+capability ReadUsers
+capability ManageUsers
+
 command RegisterUser {
   email: Email
-  name: NonEmptyString
+  name: String
 }
 
 event UserRegistered {
@@ -26,4 +29,20 @@ event UserRegistered {
 query GetUserProfile {
   input: UserId
   output: User
+}
+
+policy CanReadUser(actor: Principal, userId: UserId) {
+  require actor has ReadUsers
+}
+
+workflow OnboardUser(userId: UserId) deterministic {
+  step createWorkspace
+  step sendWelcomeEmail
+  step awaitEmailConfirmation timeout seven-days
+}
+
+handle RegisterUser -> UserRegistered with effects [db.write, emit, clock, ids] {
+}
+
+fn normalizeEmail(value: String) -> Email pure {
 }

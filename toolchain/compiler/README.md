@@ -1,9 +1,15 @@
-# Compiler Placeholder
+# Astra compiler skeleton
 
-Future planned components:
+Current prototype stages:
 
-- binder
+- parser -> AST
+- binder -> symbol table
+- basic semantic diagnostics
+
+Planned next steps:
+
+- richer grammar
 - type checker
-- effect analyzer
+- effect analysis
 - artifact graph builder
-- diagnostics engine
+- emitter pipeline
