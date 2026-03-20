@@ -1,19 +1,11 @@
-# Astra Compiler Pipeline v0.1 Draft
+# Compiler Pipeline v0.1
 
-Planned phases:
-
-1. Lexer
-2. Parser
-3. Binder
-4. Type checker
-5. Effect analysis
-6. Artifact graph builder
-7. Emitters
-
-Current repository status:
-
-- lexer: minimal prototype
-- parser: minimal prototype
-- binder: not implemented
-- type checker: not implemented
-- emitters: placeholders only
+Stages:
+1. tokenize
+2. parse
+3. bind
+4. load module graph
+5. build artifact graph
+6. build semantic IR
+7. analyze effects
+8. emit OpenAPI and JSON Schema

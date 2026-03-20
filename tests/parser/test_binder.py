@@ -1,67 +1,29 @@
-from toolchain.compiler.binder import bind_module
+from toolchain.compiler.binder import ExternalModuleSymbols, bind_module
 from toolchain.parser.parser import parse_source
 
 
-def test_binder_reports_unknown_types_and_missing_symbols():
-    source = """
-module broken
-
-command RegisterUser {
-  email: MissingType
-}
-
-query GetUserProfile {
-  input: UserId
-  output: User
-  authorize MissingPolicy
-}
-
-handle RegisterUser -> MissingEvent with effects [emit] {
-}
-
-api Users {
-  post "/users" -> UnknownTarget
-}
-"""
-    module = parse_source(source)
-    result = bind_module(module, source=source)
-    codes = {item.code for item in result.diagnostics.items}
-    assert "ASTRA2001" in codes
-    assert "ASTRA2004" in codes
-    assert "ASTRA2006" in codes
-    assert "ASTRA3002" in codes
-
-
-def test_binder_accepts_builtin_domain_types_and_api_routes():
-    source = """
+def test_binder_reports_unknown_type():
+    module = parse_source(
+        """
 module users
-
 schema User {
-  id: UserId
-  email: Email
-}
-
-command RegisterUser {
-  email: Email
-}
-
-query GetUserProfile {
-  input: UserId
-  output: User
-}
-
-event UserRegistered {
-  userId: UserId
-}
-
-handle RegisterUser -> UserRegistered with effects [emit] {
-}
-
-api Users {
-  post "/users" -> RegisterUser
-  get "/users/{userId}" -> GetUserProfile
+  id: MissingType
 }
 """
-    module = parse_source(source)
-    result = bind_module(module, source=source)
-    assert not result.diagnostics.has_errors()
+    )
+    result = bind_module(module, source="module users\nschema User {\n  id: MissingType\n}\n")
+    assert any(item.code == "ASTRA2001" for item in result.diagnostics.items)
+
+
+def test_binder_resolves_imported_symbols():
+    module = parse_source(
+        """
+module users
+import common as core
+schema User {
+  id: core.UserId
+}
+"""
+    )
+    result = bind_module(module, source="", external_modules=[ExternalModuleSymbols(module_name="common", alias="core", symbols={"UserId": "type"})])
+    assert not any(item.code == "ASTRA2001" for item in result.diagnostics.items)

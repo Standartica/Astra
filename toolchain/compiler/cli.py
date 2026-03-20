@@ -8,10 +8,19 @@ from pathlib import Path
 from toolchain.compiler.artifact_graph import build_artifact_graph
 from toolchain.compiler.binder import bind_module
 from toolchain.compiler.compatibility import compare_module_graphs
+from toolchain.compiler.effect_analysis import analyze_effects
 from toolchain.compiler.loader import load_modules
+from toolchain.compiler.semantic_ir import build_semantic_ir
 from toolchain.emitters.jsonschema import emit_json_schema
 from toolchain.emitters.openapi import emit_openapi
 from toolchain.parser.parser import ParseError, parse_source
+
+
+def _semantic_ir_payload(semantic_ir) -> dict:
+    return {
+        "modules": {name: asdict(module_ir) for name, module_ir in semantic_ir.modules.items()},
+        "diagnostics": [item.to_dict() for item in semantic_ir.diagnostics.items],
+    }
 
 
 def _single_file_payload(path: Path) -> tuple[dict, int]:
@@ -22,23 +31,33 @@ def _single_file_payload(path: Path) -> tuple[dict, int]:
         return {"parse_error": str(exc)}, 3
     result = bind_module(module, source=source)
     graph = load_modules(path)
+    semantic_ir = build_semantic_ir(graph)
+    effect_result = analyze_effects(semantic_ir)
     payload = {
         "mode": "single-file",
         "module": asdict(module),
         "imports": result.imported_modules,
         "symbols": {name: asdict(symbol) for name, symbol in result.symbols.items()},
         "diagnostics": [item.to_dict() for item in result.diagnostics.items],
+        "semantic_ir": _semantic_ir_payload(semantic_ir),
+        "effects": {
+            "summaries": [asdict(item) for item in effect_result.summaries],
+            "diagnostics": [item.to_dict() for item in effect_result.diagnostics.items],
+        },
         "emitted": {
             "jsonschema": emit_json_schema(graph),
             "openapi": emit_openapi(graph),
         },
     }
-    return payload, (4 if result.diagnostics.has_errors() else 0)
+    has_errors = result.diagnostics.has_errors() or effect_result.diagnostics.has_errors()
+    return payload, (4 if has_errors else 0)
 
 
 def _multi_module_payload(path: Path) -> tuple[dict, int]:
     module_graph = load_modules(path)
     artifact_graph = build_artifact_graph(module_graph)
+    semantic_ir = build_semantic_ir(module_graph, bind_results=artifact_graph.bind_results)
+    effect_result = analyze_effects(semantic_ir)
     artifact_graph.diagnostics.extend(module_graph.diagnostics.items)
     payload = {
         "mode": "module-graph",
@@ -58,12 +77,18 @@ def _multi_module_payload(path: Path) -> tuple[dict, int]:
             for module_name, bind_result in artifact_graph.bind_results.items()
         },
         "diagnostics": [item.to_dict() for item in artifact_graph.diagnostics.items],
+        "semantic_ir": _semantic_ir_payload(semantic_ir),
+        "effects": {
+            "summaries": [asdict(item) for item in effect_result.summaries],
+            "diagnostics": [item.to_dict() for item in effect_result.diagnostics.items],
+        },
         "emitted": {
             "jsonschema": emit_json_schema(module_graph),
             "openapi": emit_openapi(module_graph),
         },
     }
-    return payload, (4 if artifact_graph.diagnostics.has_errors() else 0)
+    has_errors = artifact_graph.diagnostics.has_errors() or effect_result.diagnostics.has_errors()
+    return payload, (4 if has_errors else 0)
 
 
 def _compat_payload(previous: Path, current: Path) -> tuple[dict, int]:

@@ -1,9 +1,7 @@
 module users
-
 export User
-export RegisterUser
-export GetUserProfile
 export Users
+export GetUser
 
 schema User {
   id: UserId
@@ -11,17 +9,11 @@ schema User {
   name: String
 }
 
-command RegisterUser {
-  email: Email
-  name: String
+api Users {
+  get "/users/{id}" -> GetUser
 }
 
-query GetUserProfile {
+query GetUser {
   input: UserId
   output: User
-}
-
-api Users {
-  post "/users" -> RegisterUser
-  get "/users/{userId}" -> GetUserProfile
 }

@@ -1,1 +1,1 @@
-"""Parser package for the Astra prototype."""
+"""Parser package."""

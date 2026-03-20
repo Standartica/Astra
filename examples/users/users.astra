@@ -46,15 +46,17 @@ invariant ActiveUserRequiresEmail(user: User) {
 }
 
 workflow OnboardUser(userId: UserId) deterministic {
-  step createWorkspace
-  step sendWelcomeEmail
-  step awaitEmailConfirmation timeout seven-days
+  step normalizeEmail
+  step sendWelcome timeout seven-days
 }
 
 handle RegisterUser -> UserRegistered with effects [db.write, emit, clock, ids] {
 }
 
 fn normalizeEmail(value: String) -> Email pure {
+}
+
+fn sendWelcome() effects [mail.send] {
 }
 
 api Users {

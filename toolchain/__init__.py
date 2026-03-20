@@ -1,1 +1,1 @@
-"""Astra toolchain prototype."""
+"""Astra toolchain package."""

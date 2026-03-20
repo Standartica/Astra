@@ -1,1 +1,1 @@
-"""Astra emitters package."""
+"""Emitters package."""

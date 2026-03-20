@@ -26,6 +26,9 @@ query GetUserProfile {
 handle RegisterUser -> core.UserRegistered with effects [db.write, emit] {
 }
 
+fn normalizeExternalEmail(value: core.Email) -> core.Email pure {
+}
+
 api Users {
   post "/users" -> RegisterUser
   get "/users/{userId}" -> GetUserProfile

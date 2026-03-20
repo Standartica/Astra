@@ -7,10 +7,6 @@ export UserRegistered
 type UserId = Uuid
 type Email = String
 
-schema AuditInfo {
-  createdBy: String
-}
-
 event UserRegistered {
   userId: UserId
   at: Instant

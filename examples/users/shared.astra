@@ -1,0 +1,5 @@
+module shared
+
+export Nothing
+
+type Nothing = String

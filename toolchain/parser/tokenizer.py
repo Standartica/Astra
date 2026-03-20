@@ -85,8 +85,8 @@ def tokenize(source: str) -> Iterator[Token]:
             i += 2
             col += 2
             continue
-        if i + 1 < n and source[i : i + 2] in DOUBLE_CHAR:
-            value = source[i : i + 2]
+        if i + 1 < n and source[i:i+2] in DOUBLE_CHAR:
+            value = source[i:i+2]
             yield Token(DOUBLE_CHAR[value], value, line, col)
             i += 2
             col += 2

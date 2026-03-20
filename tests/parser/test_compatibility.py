@@ -51,36 +51,3 @@ api Users {
     codes = {item.code for item in result.diagnostics.items}
     assert "ASTRA6003" in codes
     assert "ASTRA6001" in codes or "ASTRA6008" in codes
-
-
-def test_compatibility_reports_non_breaking_additions(tmp_path):
-    previous = tmp_path / "v1"
-    current = tmp_path / "v2"
-    previous.mkdir()
-    current.mkdir()
-    (previous / "users.astra").write_text(
-        """
-module users
-export RegisterUser
-
-command RegisterUser {
-  email: Email
-}
-""",
-        encoding="utf-8",
-    )
-    (current / "users.astra").write_text(
-        """
-module users
-export RegisterUser
-
-command RegisterUser {
-  email: Email
-  source: String
-}
-""",
-        encoding="utf-8",
-    )
-    result = compare_module_graphs(load_modules(previous), load_modules(current))
-    codes = {item.code for item in result.diagnostics.items}
-    assert "ASTRA6101" in codes

@@ -1,8 +1,3 @@
-# Runtime Core Placeholder
+# Runtime Core
 
-Future runtime responsibilities:
-
-- command execution model
-- query execution model
-- workflow runtime skeleton
-- adapter boundaries
+Runtime is not implemented yet. This folder reserves space for future command and workflow execution.

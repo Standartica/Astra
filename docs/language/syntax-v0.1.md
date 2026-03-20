@@ -1,28 +1,6 @@
-# Astra Syntax v0.1 Draft
+# Syntax v0.1
 
-## Top-level declarations
-
-Supported in the current draft:
-
-- `module`
-- `schema`
-- `enum`
-- `command`
-- `event`
-- `query`
-
-Example:
-
-```astra
-module users
-
-schema User {
-  id: UserId
-  email: Email
-}
-
-command RegisterUser {
-  email: Email
-  name: NonEmptyString
-}
-```
+Supported artifacts in the prototype:
+- module, import, export
+- type, schema, command, event, query, enum
+- capability, policy, workflow, handle, fn, invariant, api

@@ -1,18 +1,3 @@
-# Astra Effects v0.1 Draft
+# Effects v0.1
 
-Planned effect categories:
-
-- db.read
-- db.write
-- emit
-- http.call
-- mail.send
-- fs.read
-- fs.write
-- clock
-- ids
-- schedule
-- await.signal
-- ui.prompt
-
-The current prototype does not parse effects yet.
+The prototype knows declared effects, validates unknown effects, duplicate declarations and deterministic workflow safety.
