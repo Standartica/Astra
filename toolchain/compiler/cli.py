@@ -13,6 +13,8 @@ from toolchain.compiler.loader import load_modules
 from toolchain.compiler.semantic_ir import build_semantic_ir
 from toolchain.emitters.jsonschema import emit_json_schema
 from toolchain.emitters.openapi import emit_openapi
+from toolchain.emitters.server_stubs import emit_server_stubs
+from toolchain.emitters.ts_client import emit_ts_client
 from toolchain.parser.parser import ParseError, parse_source
 
 
@@ -47,6 +49,8 @@ def _single_file_payload(path: Path) -> tuple[dict, int]:
         "emitted": {
             "jsonschema": emit_json_schema(graph),
             "openapi": emit_openapi(graph),
+            "ts_client": emit_ts_client(graph),
+            "server_stubs": emit_server_stubs(graph),
         },
     }
     has_errors = result.diagnostics.has_errors() or effect_result.diagnostics.has_errors()
@@ -85,6 +89,8 @@ def _multi_module_payload(path: Path) -> tuple[dict, int]:
         "emitted": {
             "jsonschema": emit_json_schema(module_graph),
             "openapi": emit_openapi(module_graph),
+            "ts_client": emit_ts_client(module_graph),
+            "server_stubs": emit_server_stubs(module_graph),
         },
     }
     has_errors = artifact_graph.diagnostics.has_errors() or effect_result.diagnostics.has_errors()

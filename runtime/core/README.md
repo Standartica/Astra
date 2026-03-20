@@ -1,3 +1,3 @@
 # Runtime Core
 
-Runtime is not implemented yet. This folder reserves space for future command and workflow execution.
+Contains runtime-facing support code and generated server-stub integration points for Astra artifacts.
