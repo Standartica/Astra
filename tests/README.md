@@ -1,9 +1,7 @@
 # Tests
 
-This directory is reserved for:
+Planned:
 
-- parser tests
-- type system tests
-- effect analysis tests
-- compatibility tests
-- emitter snapshot tests
+- parser unit tests
+- tokenizer tests
+- fixture-based language examples

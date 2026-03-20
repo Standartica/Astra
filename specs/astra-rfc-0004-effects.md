@@ -1,39 +1,5 @@
-# RFC 0004: Effects
+# RFC 0004 — Effects
 
-## Status
-Draft
+Astra will use explicit effects rather than implicit side effects.
 
-## Summary
-
-Define Astra's explicit effect model.
-
-## Proposed rule
-
-Every executable artifact is either:
-
-- `pure`, or
-- `effects [...]`
-
-## Initial effect taxonomy
-
-- db.read
-- db.write
-- emit
-- http.call
-- mail.send
-- fs.read
-- fs.write
-- clock
-- ids
-- schedule
-- await.signal
-- ui.prompt
-
-## Why
-
-This enables:
-
-- safer static analysis
-- deterministic workflow validation
-- emitter reasoning
-- AI-guided safe modifications
+This RFC is a placeholder in the current repository draft.

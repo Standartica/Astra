@@ -1,48 +1,20 @@
-# RFC 0002: Core Syntax
+# RFC 0002 — Core Syntax
 
-## Status
-Draft
+This RFC defines the first parseable subset of Astra.
 
-## Summary
+Included declarations:
 
-Define the first stable draft of Astra surface syntax.
+- module
+- schema
+- enum
+- command
+- event
+- query
 
-## Proposed core declarations
+Each block declaration uses the form:
 
-- `module`
-- `schema`
-- `enum`
-- `union`
-- `command`
-- `event`
-- `query`
-- `projection`
-- `workflow`
-- `policy`
-- `capability`
-- `api`
-- `view`
-- `invariant`
-- `fn`
-- `handle`
-- `resolve`
-- `project`
-- `design`
-- `derive`
-- `guardrails`
-
-## Design principles
-
-- readable by humans
-- predictable for AI
-- low hidden magic
-- explicit declaration boundaries
-- minimal ceremony
-
-## Deferred topics
-
-- imports
-- namespaces beyond `module`
-- macros/metaprogramming
-- generic constraints
-- pattern matching details
+```astra
+schema Name {
+  field: Type
+}
+```

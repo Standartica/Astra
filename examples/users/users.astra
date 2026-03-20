@@ -1,26 +1,17 @@
 module users
 
-type Email = String where isEmail(self)
-type UserId = Uuid
-type NonEmptyString = String where length(self.trim()) > 0
+schema User {
+  id: UserId
+  email: Email
+  name: NonEmptyString
+  status: UserStatus
+}
 
 enum UserStatus {
   Pending
   Active
   Suspended
 }
-
-schema User {
-  id: UserId
-  email: Email @unique
-  name: NonEmptyString
-  status: UserStatus = Pending
-  emailConfirmed: Bool = false
-  createdAt: Instant
-}
-
-capability ReadUsers
-capability ManageUsers
 
 command RegisterUser {
   email: Email
@@ -32,74 +23,7 @@ event UserRegistered {
   at: Instant
 }
 
-invariant ActiveUserRequiresConfirmedEmail(user: User) {
-  user.status == Active => user.emailConfirmed == true
-}
-
-policy CanReadUser(actor: Principal, userId: UserId) {
-  require actor has ReadUsers
-}
-
 query GetUserProfile {
-  input userId: UserId
-  output User
-  authorize CanReadUser
-}
-
-handle RegisterUser -> UserRegistered
-  effects [db.write, emit, clock, ids]
-{
-  let id = ids.new()
-  let now = clock.now()
-
-  persist User {
-    id = id,
-    email = input.email,
-    name = input.name,
-    status = Pending,
-    emailConfirmed = false,
-    createdAt = now
-  }
-
-  emit UserRegistered {
-    userId = id,
-    at = now
-  }
-}
-
-resolve GetUserProfile
-  effects [db.read]
-{
-  db.users.require(input.userId)
-}
-
-api Users {
-  post "/users" => RegisterUser
-  get "/users/{userId}" => GetUserProfile
-}
-
-view UsersPage {
-  source users: User[]
-  action create => RegisterUser
-}
-
-design UserRegistration {
-  goal: "Create account with email verification"
-  assumptions:
-    - "Email must be unique"
-    - "Activation requires confirmation"
-  risks:
-    - "Duplicate submissions"
-}
-
-derive from RegisterUser:
-  form
-  openapi
-  ts-client
-  docs
-
-guardrails UsersModule {
-  preserve api Users
-  preserve invariant ActiveUserRequiresConfirmedEmail
-  forbid breaking change on schema User.id
+  input: UserId
+  output: User
 }
