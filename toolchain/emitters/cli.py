@@ -7,13 +7,13 @@ from pathlib import Path
 from toolchain.compiler.loader import load_modules
 from toolchain.emitters.jsonschema import emit_json_schema
 from toolchain.emitters.openapi import emit_openapi
-from toolchain.emitters.server_stubs import emit_server_stubs
+from toolchain.emitters.server_fastapi import emit_server_fastapi
 from toolchain.emitters.ts_client import emit_ts_client
 
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print("Usage: python -m toolchain.emitters.cli <openapi|jsonschema|ts-client|server-stubs> <file.astra|directory>")
+        print("Usage: python -m toolchain.emitters.cli <openapi|jsonschema|ts-client|server-fastapi> <file.astra|directory>")
         return 1
     kind = sys.argv[1].lower()
     path = Path(sys.argv[2])
@@ -27,15 +27,16 @@ def main() -> int:
         payload = emit_json_schema(graph)
     elif kind == "ts-client":
         payload = emit_ts_client(graph)
-    elif kind == "server-stubs":
-        payload = emit_server_stubs(graph)
+        print(payload)
+        return 0
+    elif kind == "server-fastapi":
+        payload = emit_server_fastapi(graph)
+        print(payload)
+        return 0
     else:
         print(f"Unknown emitter kind: {kind}")
         return 3
-    if isinstance(payload, str):
-        print(payload)
-    else:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
 

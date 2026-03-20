@@ -1,9 +1,9 @@
 from toolchain.compiler.loader import load_modules
-from toolchain.emitters.server_stubs import emit_server_stubs
+from toolchain.emitters.server_fastapi import emit_server_fastapi
 from toolchain.emitters.ts_client import emit_ts_client
 
 
-def test_codegen_emitters_generate_ts_client_and_server_stubs_for_workspace(tmp_path):
+def test_codegen_emitters_generate_typed_ts_client_and_fastapi_stubs(tmp_path):
     (tmp_path / "common.astra").write_text(
         """
 module common
@@ -44,17 +44,12 @@ api Users {
         encoding="utf-8",
     )
     graph = load_modules(tmp_path)
-
     ts_client = emit_ts_client(graph)
-    server_stubs = emit_server_stubs(graph)
+    fastapi = emit_server_fastapi(graph)
 
-    assert "export interface User" in ts_client
-    assert "export interface RegisterUser" in ts_client
-    assert "class AstraClient" in ts_client
-    assert "async registerUser(body: RegisterUser)" in ts_client
-    assert "async getUserProfile(userId: string) : Promise<User>" in ts_client
-    assert "RouteStub" in server_stubs
-    assert "users.Users.RegisterUser" in server_stubs
-    assert "response_model='User'" in server_stubs
-    assert "const url = `${this.baseUrl}/users`;" in ts_client
-    assert "const url = `${this.baseUrl}/users/${userId}`;" in ts_client
+    assert "export interface users_User" in ts_client
+    assert "export async function users_Users_get_GetUserProfile" in ts_client
+    assert "const url = `${client.baseUrl}/users/${encodeURIComponent(String(userId))}`;" in ts_client
+    assert "class users_User(BaseModel):" in fastapi
+    assert '@users_router.get("/users/{userId}", response_model=users_User)' in fastapi
+    assert "async def users_Users_post_RegisterUser(payload: users_RegisterUser):" in fastapi

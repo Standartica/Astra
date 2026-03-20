@@ -10,3 +10,9 @@ Planned components:
 - effect analyzer
 - artifact graph builder
 - emitters
+
+
+## New emitters
+
+- `ts-client` — generates a typed TypeScript SDK scaffold
+- `server-fastapi` — generates FastAPI/Pydantic server stubs
