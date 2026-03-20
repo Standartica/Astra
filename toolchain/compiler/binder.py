@@ -43,7 +43,7 @@ def _add_symbol(result: BindResult, name: str, kind: str, span, lines: list[str]
     result.symbols[name] = Symbol(name=name, kind=kind, line=getattr(span, "line", None), column=getattr(span, "column", None))
 
 
-def bind_module(module: Module, source: str | None = None) -> BindResult:
+def bind_module(module: Module, source: str | None = None, external_symbols: Dict[str, str] | None = None) -> BindResult:
     result = BindResult()
     lines = (source or "").splitlines()
     module_name = module.name or "<anonymous>"
@@ -78,7 +78,8 @@ def bind_module(module: Module, source: str | None = None) -> BindResult:
     for decl in module.apis:
         _add_symbol(result, decl.name, "api", decl.span, lines)
 
-    known_types = set(BUILTIN_TYPES) | {name for name, sym in result.symbols.items() if sym.kind in {"schema", "enum", "type"}}
+    external_symbols = external_symbols or {}
+    known_types = set(BUILTIN_TYPES) | {name for name, sym in result.symbols.items() if sym.kind in {"schema", "enum", "type"}} | {name for name, kind in external_symbols.items() if kind in {"schema", "enum", "type"}}
 
     def require_type(type_name: str, span, owner: str) -> None:
         if type_name not in known_types:
@@ -86,6 +87,8 @@ def bind_module(module: Module, source: str | None = None) -> BindResult:
 
     def require_symbol(name: str, expected_kinds: Iterable[str], code_unknown: str, code_mismatch: str, context: str, span) -> None:
         sym = result.symbols.get(name)
+        if sym is None and name in external_symbols:
+            sym = Symbol(name=name, kind=external_symbols[name])
         if sym is None:
             result.diagnostics.add("error", code_unknown, f"Unknown {context} '{name}'", getattr(span, "line", None), getattr(span, "column", None), _span_snippet(lines, span))
             return

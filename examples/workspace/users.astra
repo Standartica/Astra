@@ -1,0 +1,32 @@
+module users
+
+import common
+
+schema User {
+  id: UserId
+  email: Email
+}
+
+command RegisterUser {
+  email: Email
+}
+
+policy CanReadUser(actor: Principal, userId: UserId) {
+  require actor has ReadUsers
+}
+
+capability ReadUsers
+
+query GetUserProfile {
+  input: UserId
+  output: User
+  authorize CanReadUser
+}
+
+handle RegisterUser -> UserRegistered with effects [db.write, emit] {
+}
+
+api Users {
+  post "/users" -> RegisterUser
+  get "/users/{userId}" -> GetUserProfile
+}
