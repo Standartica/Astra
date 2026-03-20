@@ -22,11 +22,11 @@ class ModuleGraph:
     modules: dict[str, LoadedModule] = field(default_factory=dict)
     diagnostics: DiagnosticBag = field(default_factory=DiagnosticBag)
 
-    def edges(self) -> list[dict[str, str]]:
-        result: list[dict[str, str]] = []
+    def edges(self) -> list[dict[str, str | None]]:
+        result: list[dict[str, str | None]] = []
         for module in self.modules.values():
             for imp in module.module.imports:
-                result.append({"from": module.name, "to": imp.module_name, "kind": "imports"})
+                result.append({"from": module.name, "to": imp.module_name, "kind": "imports", "alias": imp.alias})
         return result
 
 
@@ -63,14 +63,10 @@ def load_modules(root_path: str | Path) -> ModuleGraph:
             )
             continue
 
-        graph.modules[module_name] = LoadedModule(
-            name=module_name,
-            path=str(file_path),
-            source=source,
-            module=module,
-        )
+        graph.modules[module_name] = LoadedModule(name=module_name, path=str(file_path), source=source, module=module)
 
     for loaded in graph.modules.values():
+        seen_aliases: set[str] = set()
         for imp in loaded.module.imports:
             if imp.module_name not in graph.modules:
                 graph.diagnostics.add(
@@ -80,4 +76,14 @@ def load_modules(root_path: str | Path) -> ModuleGraph:
                     getattr(imp.span, "line", None),
                     getattr(imp.span, "column", None),
                 )
+            alias = imp.alias or imp.module_name
+            if alias in seen_aliases:
+                graph.diagnostics.add(
+                    "error",
+                    "ASTRA4005",
+                    f"Module '{loaded.name}' imports duplicate alias '{alias}'",
+                    getattr(imp.span, "line", None),
+                    getattr(imp.span, "column", None),
+                )
+            seen_aliases.add(alias)
     return graph

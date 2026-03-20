@@ -1,29 +1,29 @@
 module users
 
-import common
+import common as core
 
 schema User {
-  id: UserId
-  email: Email
+  id: core.UserId
+  email: core.Email
 }
 
 command RegisterUser {
-  email: Email
+  email: core.Email
 }
 
-policy CanReadUser(actor: Principal, userId: UserId) {
+policy CanReadUser(actor: Principal, userId: core.UserId) {
   require actor has ReadUsers
 }
 
 capability ReadUsers
 
 query GetUserProfile {
-  input: UserId
+  input: core.UserId
   output: User
   authorize CanReadUser
 }
 
-handle RegisterUser -> UserRegistered with effects [db.write, emit] {
+handle RegisterUser -> core.UserRegistered with effects [db.write, emit] {
 }
 
 api Users {

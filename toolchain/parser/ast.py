@@ -15,6 +15,13 @@ class SourceSpan:
 @dataclass(slots=True)
 class ImportDecl:
     module_name: str
+    alias: str | None = None
+    span: SourceSpan | None = None
+
+
+@dataclass(slots=True)
+class ExportDecl:
+    name: str
     span: SourceSpan | None = None
 
 
@@ -152,6 +159,7 @@ class ApiDecl:
 class Module:
     name: Optional[str] = None
     imports: List[ImportDecl] = field(default_factory=list)
+    exports: List[ExportDecl] = field(default_factory=list)
     type_aliases: List[TypeAliasDecl] = field(default_factory=list)
     schemas: List[SchemaDecl] = field(default_factory=list)
     commands: List[CommandDecl] = field(default_factory=list)

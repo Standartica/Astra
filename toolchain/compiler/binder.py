@@ -11,6 +11,21 @@ BUILTIN_TYPES = {
     "Option", "Result", "List", "Set", "Map", "Email", "UserId", "Principal", "TenantId"
 }
 
+DECL_ATTRS = {
+    "type": "type_aliases",
+    "schema": "schemas",
+    "command": "commands",
+    "event": "events",
+    "query": "queries",
+    "enum": "enums",
+    "capability": "capabilities",
+    "policy": "policies",
+    "workflow": "workflows",
+    "fn": "functions",
+    "invariant": "invariants",
+    "api": "apis",
+}
+
 
 @dataclass(slots=True)
 class Symbol:
@@ -18,6 +33,7 @@ class Symbol:
     kind: str
     line: int | None = None
     column: int | None = None
+    exported: bool = True
 
 
 @dataclass(slots=True)
@@ -25,6 +41,15 @@ class BindResult:
     symbols: Dict[str, Symbol] = field(default_factory=dict)
     diagnostics: DiagnosticBag = field(default_factory=DiagnosticBag)
     imported_modules: list[str] = field(default_factory=list)
+    visible_imports: Dict[str, str] = field(default_factory=dict)
+    exports: set[str] = field(default_factory=set)
+
+
+@dataclass(slots=True)
+class ExternalModuleSymbols:
+    module_name: str
+    alias: str | None
+    symbols: Dict[str, str]
 
 
 def _span_snippet(lines: list[str], span) -> str | None:
@@ -36,6 +61,13 @@ def _span_snippet(lines: list[str], span) -> str | None:
     return None
 
 
+def _split_qualified(name: str) -> tuple[str | None, str]:
+    if "." in name:
+        left, right = name.rsplit(".", 1)
+        return left, right
+    return None, name
+
+
 def _add_symbol(result: BindResult, name: str, kind: str, span, lines: list[str]) -> None:
     if name in result.symbols:
         result.diagnostics.add("error", "ASTRA1001", f"Duplicate declaration for {kind} '{name}'", getattr(span, "line", None), getattr(span, "column", None), _span_snippet(lines, span))
@@ -43,52 +75,80 @@ def _add_symbol(result: BindResult, name: str, kind: str, span, lines: list[str]
     result.symbols[name] = Symbol(name=name, kind=kind, line=getattr(span, "line", None), column=getattr(span, "column", None))
 
 
-def bind_module(module: Module, source: str | None = None, external_symbols: Dict[str, str] | None = None) -> BindResult:
+def bind_module(module: Module, source: str | None = None, external_modules: list[ExternalModuleSymbols] | None = None) -> BindResult:
     result = BindResult()
     lines = (source or "").splitlines()
     module_name = module.name or "<anonymous>"
 
     for decl in module.imports:
         result.imported_modules.append(decl.module_name)
+        alias = decl.alias or decl.module_name
+        result.visible_imports[alias] = decl.module_name
         if decl.module_name == module_name:
             result.diagnostics.add("error", "ASTRA1002", f"Module '{module_name}' cannot import itself", decl.span.line if decl.span else None, decl.span.column if decl.span else None, _span_snippet(lines, decl.span))
 
-    for decl in module.type_aliases:
-        _add_symbol(result, decl.name, "type", decl.span, lines)
-    for decl in module.schemas:
-        _add_symbol(result, decl.name, "schema", decl.span, lines)
-    for decl in module.commands:
-        _add_symbol(result, decl.name, "command", decl.span, lines)
-    for decl in module.events:
-        _add_symbol(result, decl.name, "event", decl.span, lines)
-    for decl in module.queries:
-        _add_symbol(result, decl.name, "query", decl.span, lines)
-    for decl in module.enums:
-        _add_symbol(result, decl.name, "enum", decl.span, lines)
-    for decl in module.capabilities:
-        _add_symbol(result, decl.name, "capability", decl.span, lines)
-    for decl in module.policies:
-        _add_symbol(result, decl.name, "policy", decl.span, lines)
-    for decl in module.workflows:
-        _add_symbol(result, decl.name, "workflow", decl.span, lines)
-    for decl in module.functions:
-        _add_symbol(result, decl.name, "fn", decl.span, lines)
-    for decl in module.invariants:
-        _add_symbol(result, decl.name, "invariant", decl.span, lines)
-    for decl in module.apis:
-        _add_symbol(result, decl.name, "api", decl.span, lines)
+    for kind, attr in DECL_ATTRS.items():
+        for decl in getattr(module, attr):
+            _add_symbol(result, decl.name, kind, decl.span, lines)
 
-    external_symbols = external_symbols or {}
-    known_types = set(BUILTIN_TYPES) | {name for name, sym in result.symbols.items() if sym.kind in {"schema", "enum", "type"}} | {name for name, kind in external_symbols.items() if kind in {"schema", "enum", "type"}}
+    external_modules = external_modules or []
+    external_by_alias = {ext.alias or ext.module_name: ext for ext in external_modules}
+
+    if module.exports:
+        export_names = {decl.name for decl in module.exports}
+        for export_decl in module.exports:
+            if export_decl.name not in result.symbols:
+                result.diagnostics.add("error", "ASTRA1003", f"Export references unknown local symbol '{export_decl.name}'", getattr(export_decl.span, "line", None), getattr(export_decl.span, "column", None), _span_snippet(lines, export_decl.span))
+        result.exports = export_names & set(result.symbols.keys())
+    else:
+        result.exports = set(result.symbols.keys())
+
+    for name, sym in result.symbols.items():
+        sym.exported = name in result.exports
+
+    known_local_types = {name for name, sym in result.symbols.items() if sym.kind in {"schema", "enum", "type"}}
+    known_exported_external_types = {
+        name
+        for ext in external_modules
+        for name, kind in ext.symbols.items()
+        if kind in {"schema", "enum", "type"}
+    }
+    known_types = set(BUILTIN_TYPES) | known_local_types | known_exported_external_types
+
+    def resolve_symbol(name: str) -> Symbol | None:
+        qualifier, bare = _split_qualified(name)
+        if qualifier is None:
+            local = result.symbols.get(bare)
+            if local:
+                return local
+            matches = []
+            for ext in external_modules:
+                if bare in ext.symbols:
+                    matches.append(Symbol(name=bare, kind=ext.symbols[bare]))
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                result.diagnostics.add("error", "ASTRA5001", f"Ambiguous imported reference '{bare}' in module '{module_name}'")
+            return None
+        ext = external_by_alias.get(qualifier)
+        if ext is None:
+            result.diagnostics.add("error", "ASTRA5002", f"Unknown import alias or module '{qualifier}' in qualified reference '{name}'")
+            return None
+        if bare not in ext.symbols:
+            result.diagnostics.add("error", "ASTRA5003", f"Module '{ext.module_name}' does not export symbol '{bare}'")
+            return None
+        return Symbol(name=name, kind=ext.symbols[bare])
 
     def require_type(type_name: str, span, owner: str) -> None:
-        if type_name not in known_types:
+        qualifier, bare = _split_qualified(type_name)
+        if qualifier is None and bare in known_types:
+            return
+        symbol = resolve_symbol(type_name)
+        if symbol is None or symbol.kind not in {"schema", "enum", "type"}:
             result.diagnostics.add("error", "ASTRA2001", f"Unknown type '{type_name}' referenced from {owner}", getattr(span, "line", None), getattr(span, "column", None), _span_snippet(lines, span))
 
     def require_symbol(name: str, expected_kinds: Iterable[str], code_unknown: str, code_mismatch: str, context: str, span) -> None:
-        sym = result.symbols.get(name)
-        if sym is None and name in external_symbols:
-            sym = Symbol(name=name, kind=external_symbols[name])
+        sym = resolve_symbol(name)
         if sym is None:
             result.diagnostics.add("error", code_unknown, f"Unknown {context} '{name}'", getattr(span, "line", None), getattr(span, "column", None), _span_snippet(lines, span))
             return
@@ -138,9 +198,9 @@ def bind_module(module: Module, source: str | None = None, external_symbols: Dic
             if key in seen_routes:
                 result.diagnostics.add("error", "ASTRA3001", f"Duplicate route '{route.method.upper()} {route.path}' in api {api.name}", route.span.line if route.span else None, route.span.column if route.span else None, _span_snippet(lines, route.span))
             seen_routes.add(key)
-            target_sym = result.symbols.get(route.target)
-            if target_sym is None:
+            sym = resolve_symbol(route.target)
+            if sym is None:
                 result.diagnostics.add("error", "ASTRA3002", f"Unknown api target '{route.target}' in api {api.name}", route.span.line if route.span else None, route.span.column if route.span else None, _span_snippet(lines, route.span))
-            elif target_sym.kind not in {"command", "query"}:
-                result.diagnostics.add("error", "ASTRA3003", f"Api target '{route.target}' must be command or query, got {target_sym.kind}", route.span.line if route.span else None, route.span.column if route.span else None, _span_snippet(lines, route.span))
+            elif sym.kind not in {"command", "query"}:
+                result.diagnostics.add("error", "ASTRA3003", f"Api target '{route.target}' must be command or query, got {sym.kind}", route.span.line if route.span else None, route.span.column if route.span else None, _span_snippet(lines, route.span))
     return result

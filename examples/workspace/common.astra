@@ -1,5 +1,9 @@
 module common
 
+export UserId
+export Email
+export UserRegistered
+
 type UserId = Uuid
 type Email = String
 

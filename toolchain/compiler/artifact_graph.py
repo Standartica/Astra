@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from toolchain.compiler.binder import BindResult, bind_module
+from toolchain.compiler.binder import DECL_ATTRS, BindResult, ExternalModuleSymbols, bind_module
 from toolchain.compiler.diagnostics import DiagnosticBag
 from toolchain.compiler.loader import ModuleGraph
 
@@ -16,6 +16,7 @@ class ArtifactNode:
     path: str
     line: int | None = None
     column: int | None = None
+    exported: bool = True
 
 
 @dataclass(slots=True)
@@ -33,50 +34,52 @@ class ArtifactGraphResult:
     diagnostics: DiagnosticBag = field(default_factory=DiagnosticBag)
 
 
-DECL_GROUPS = {
-    "type": "type_aliases",
-    "schema": "schemas",
-    "command": "commands",
-    "event": "events",
-    "query": "queries",
-    "enum": "enums",
-    "capability": "capabilities",
-    "policy": "policies",
-    "workflow": "workflows",
-    "fn": "functions",
-    "invariant": "invariants",
-    "api": "apis",
-}
-
-
 def _node_id(module_name: str, kind: str, name: str) -> str:
     return f"{module_name}:{kind}:{name}"
 
 
+def _split_qualified(name: str) -> tuple[str | None, str]:
+    if "." in name:
+        left, right = name.rsplit(".", 1)
+        return left, right
+    return None, name
+
+
+def _exported_symbol_maps(module_graph: ModuleGraph) -> dict[str, dict[str, str]]:
+    exported: dict[str, dict[str, str]] = {}
+    for module_name, loaded in module_graph.modules.items():
+        local_symbols: dict[str, str] = {}
+        for kind, attr in DECL_ATTRS.items():
+            for decl in getattr(loaded.module, attr):
+                local_symbols[decl.name] = kind
+        if loaded.module.exports:
+            exported[module_name] = {name: local_symbols[name] for name in {e.name for e in loaded.module.exports} if name in local_symbols}
+        else:
+            exported[module_name] = local_symbols
+    return exported
+
+
 def build_artifact_graph(module_graph: ModuleGraph) -> ArtifactGraphResult:
     result = ArtifactGraphResult()
+    if module_graph.diagnostics.items:
+        result.diagnostics.extend(module_graph.diagnostics.items)
+
+    exported_maps = _exported_symbol_maps(module_graph)
     symbol_index: dict[tuple[str, str], ArtifactNode] = {}
 
-    external_index: dict[str, dict[str, str]] = {}
     for module_name, loaded in module_graph.modules.items():
-        imported_modules = [imp.module_name for imp in loaded.module.imports]
-        external_symbols: dict[str, str] = {}
-        for imported_module in imported_modules:
-            imported_loaded = module_graph.modules.get(imported_module)
-            if not imported_loaded:
+        external_modules: list[ExternalModuleSymbols] = []
+        for imp in loaded.module.imports:
+            imported_loaded = module_graph.modules.get(imp.module_name)
+            if imported_loaded is None:
                 continue
-            for kind, attr in DECL_GROUPS.items():
-                for decl in getattr(imported_loaded.module, attr):
-                    external_symbols.setdefault(decl.name, kind)
-        external_index[module_name] = external_symbols
+            external_modules.append(ExternalModuleSymbols(module_name=imp.module_name, alias=imp.alias, symbols=exported_maps[imp.module_name]))
 
-    # bind per module
-    for module_name, loaded in module_graph.modules.items():
-        bind_result = bind_module(loaded.module, source=loaded.source, external_symbols=external_index[module_name])
+        bind_result = bind_module(loaded.module, source=loaded.source, external_modules=external_modules)
         result.bind_results[module_name] = bind_result
         result.diagnostics.extend(bind_result.diagnostics.items)
 
-        for kind, attr in DECL_GROUPS.items():
+        for kind, attr in DECL_ATTRS.items():
             for decl in getattr(loaded.module, attr):
                 node = ArtifactNode(
                     id=_node_id(module_name, kind, decl.name),
@@ -86,60 +89,60 @@ def build_artifact_graph(module_graph: ModuleGraph) -> ArtifactGraphResult:
                     path=loaded.path,
                     line=getattr(decl.span, "line", None),
                     column=getattr(decl.span, "column", None),
+                    exported=(decl.name in bind_result.exports),
                 )
                 result.nodes.append(node)
                 symbol_index[(module_name, decl.name)] = node
 
-    # module import edges
     for module_name, loaded in module_graph.modules.items():
         for imp in loaded.module.imports:
             if imp.module_name in module_graph.modules:
-                result.edges.append(
-                    ArtifactEdge(
-                        from_id=f"module:{module_name}",
-                        to_id=f"module:{imp.module_name}",
-                        kind="imports",
-                    )
-                )
+                result.edges.append(ArtifactEdge(from_id=f"module:{module_name}", to_id=f"module:{imp.module_name}", kind=f"imports:{imp.alias or imp.module_name}"))
 
-    # cross-module reference helpers
     def resolve_reference(current_module: str, name: str, allowed_kinds: set[str]) -> ArtifactNode | None:
-        local = symbol_index.get((current_module, name))
-        if local and local.kind in allowed_kinds:
-            return local
-        imported_names = [imp.module_name for imp in module_graph.modules[current_module].module.imports]
-        matches = [symbol_index[(mod_name, name)] for mod_name in imported_names if (mod_name, name) in symbol_index and symbol_index[(mod_name, name)].kind in allowed_kinds]
-        if len(matches) == 1:
-            return matches[0]
-        if len(matches) > 1:
-            loaded = module_graph.modules[current_module]
-            result.diagnostics.add(
-                "error",
-                "ASTRA5001",
-                f"Ambiguous reference '{name}' in module '{current_module}'",
-                snippet=loaded.path,
-            )
+        qualifier, bare = _split_qualified(name)
+        if qualifier is None:
+            local = symbol_index.get((current_module, bare))
+            if local and local.kind in allowed_kinds:
+                return local
+            imported_names = []
+            for imp in module_graph.modules[current_module].module.imports:
+                if bare in exported_maps.get(imp.module_name, {}):
+                    imported_names.append(imp.module_name)
+            matches = [symbol_index[(mod_name, bare)] for mod_name in imported_names if (mod_name, bare) in symbol_index and symbol_index[(mod_name, bare)].kind in allowed_kinds]
+            if len(matches) == 1:
+                return matches[0]
+            return None
+
+        target_module = None
+        for imp in module_graph.modules[current_module].module.imports:
+            if qualifier in {imp.alias, imp.module_name}:
+                target_module = imp.module_name
+                break
+        if target_module is None:
+            return None
+        node = symbol_index.get((target_module, bare))
+        if node and node.exported and node.kind in allowed_kinds:
+            return node
         return None
 
     for module_name, loaded in module_graph.modules.items():
-        # query policy edges
         for query in loaded.module.queries:
             if query.authorize_policy:
                 target = resolve_reference(module_name, query.authorize_policy, {"policy"})
                 if target:
                     result.edges.append(ArtifactEdge(_node_id(module_name, "query", query.name), target.id, "authorizes-with"))
 
-        # handle edges
         for handle in loaded.module.handles:
+            handle_id = f"{module_name}:handle:{handle.command_name}->{handle.event_name or '_'}"
             cmd = resolve_reference(module_name, handle.command_name, {"command"})
             if cmd:
-                result.edges.append(ArtifactEdge(f"{module_name}:handle:{handle.command_name}->{handle.event_name or '_'}", cmd.id, "handles"))
+                result.edges.append(ArtifactEdge(handle_id, cmd.id, "handles"))
             if handle.event_name:
                 evt = resolve_reference(module_name, handle.event_name, {"event"})
                 if evt:
-                    result.edges.append(ArtifactEdge(f"{module_name}:handle:{handle.command_name}->{handle.event_name}", evt.id, "emits"))
+                    result.edges.append(ArtifactEdge(handle_id, evt.id, "emits"))
 
-        # api route edges
         for api in loaded.module.apis:
             api_id = _node_id(module_name, "api", api.name)
             for route in api.routes:

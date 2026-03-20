@@ -13,7 +13,7 @@ class Token:
 
 
 KEYWORDS = {
-    "module", "import", "type", "schema", "command", "event", "query", "authorize", "enum",
+    "module", "import", "as", "export", "type", "schema", "command", "event", "query", "authorize", "enum",
     "capability", "policy", "require", "workflow", "step", "timeout", "deterministic",
     "handle", "with", "effects", "fn", "pure", "invariant", "api", "get", "post",
     "put", "patch", "delete",
