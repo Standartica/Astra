@@ -6,12 +6,14 @@ Current prototype stages:
 - build a symbol table and lightweight semantic model
 - validate basic type references and artifact links
 - validate `api` routes and `query authorize` bindings
-- produce source-aware diagnostics with line/column/snippet data
+- validate multi-module imports/exports/aliases
+- build artifact graph across modules
+- emit `JSON Schema` and `OpenAPI`
+- compare exported artifact compatibility between two versions
 
 Planned next steps:
 
-- module graph loader across files
 - richer type checking
 - effect propagation analysis
-- artifact graph emission
-- first emitter prototypes
+- semantic linker improvements
+- first runtime and code-generation emitters

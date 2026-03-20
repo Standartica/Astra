@@ -6,9 +6,12 @@ from dataclasses import asdict
 from pathlib import Path
 
 from toolchain.compiler.artifact_graph import build_artifact_graph
-from toolchain.compiler.loader import load_modules
-from toolchain.parser.parser import ParseError, parse_source
 from toolchain.compiler.binder import bind_module
+from toolchain.compiler.compatibility import compare_module_graphs
+from toolchain.compiler.loader import load_modules
+from toolchain.emitters.jsonschema import emit_json_schema
+from toolchain.emitters.openapi import emit_openapi
+from toolchain.parser.parser import ParseError, parse_source
 
 
 def _single_file_payload(path: Path) -> tuple[dict, int]:
@@ -18,12 +21,17 @@ def _single_file_payload(path: Path) -> tuple[dict, int]:
     except ParseError as exc:
         return {"parse_error": str(exc)}, 3
     result = bind_module(module, source=source)
+    graph = load_modules(path)
     payload = {
         "mode": "single-file",
         "module": asdict(module),
         "imports": result.imported_modules,
         "symbols": {name: asdict(symbol) for name, symbol in result.symbols.items()},
         "diagnostics": [item.to_dict() for item in result.diagnostics.items],
+        "emitted": {
+            "jsonschema": emit_json_schema(graph),
+            "openapi": emit_openapi(graph),
+        },
     }
     return payload, (4 if result.diagnostics.has_errors() else 0)
 
@@ -50,24 +58,51 @@ def _multi_module_payload(path: Path) -> tuple[dict, int]:
             for module_name, bind_result in artifact_graph.bind_results.items()
         },
         "diagnostics": [item.to_dict() for item in artifact_graph.diagnostics.items],
+        "emitted": {
+            "jsonschema": emit_json_schema(module_graph),
+            "openapi": emit_openapi(module_graph),
+        },
     }
     return payload, (4 if artifact_graph.diagnostics.has_errors() else 0)
 
 
+def _compat_payload(previous: Path, current: Path) -> tuple[dict, int]:
+    previous_graph = load_modules(previous)
+    current_graph = load_modules(current)
+    result = compare_module_graphs(previous_graph, current_graph)
+    payload = {
+        "mode": "compatibility",
+        "previous": str(previous),
+        "current": str(current),
+        "previous_artifacts": result.previous_count,
+        "current_artifacts": result.current_count,
+        "diagnostics": [item.to_dict() for item in result.diagnostics.items],
+    }
+    return payload, (4 if result.diagnostics.has_errors() else 0)
+
+
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("Usage: python -m toolchain.compiler.cli <file.astra | directory>")
-        return 1
-    path = Path(sys.argv[1])
-    if not path.exists():
-        print(f"File or directory not found: {path}")
-        return 2
-    if path.is_dir():
-        payload, code = _multi_module_payload(path)
-    else:
-        payload, code = _single_file_payload(path)
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
-    return code
+    argv = sys.argv[1:]
+    if len(argv) == 1:
+        path = Path(argv[0])
+        if not path.exists():
+            print(f"File or directory not found: {path}")
+            return 2
+        payload, code = _multi_module_payload(path) if path.is_dir() else _single_file_payload(path)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return code
+    if len(argv) == 3 and argv[0] == "compat":
+        previous = Path(argv[1])
+        current = Path(argv[2])
+        if not previous.exists() or not current.exists():
+            print("Both previous and current paths must exist")
+            return 2
+        payload, code = _compat_payload(previous, current)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return code
+    print("Usage: python -m toolchain.compiler.cli <file.astra|directory>")
+    print("   or: python -m toolchain.compiler.cli compat <previous_dir> <current_dir>")
+    return 1
 
 
 if __name__ == "__main__":

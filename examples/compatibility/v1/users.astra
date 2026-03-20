@@ -1,0 +1,27 @@
+module users
+
+export User
+export RegisterUser
+export GetUserProfile
+export Users
+
+schema User {
+  id: UserId
+  email: Email
+  name: String
+}
+
+command RegisterUser {
+  email: Email
+  name: String
+}
+
+query GetUserProfile {
+  input: UserId
+  output: User
+}
+
+api Users {
+  post "/users" -> RegisterUser
+  get "/users/{userId}" -> GetUserProfile
+}
