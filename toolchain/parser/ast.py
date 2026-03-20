@@ -13,6 +13,12 @@ class SourceSpan:
 
 
 @dataclass(slots=True)
+class ImportDecl:
+    module_name: str
+    span: SourceSpan | None = None
+
+
+@dataclass(slots=True)
 class FieldDecl:
     name: str
     type_name: str
@@ -23,6 +29,13 @@ class FieldDecl:
 class ParameterDecl:
     name: str
     type_name: str
+    span: SourceSpan | None = None
+
+
+@dataclass(slots=True)
+class TypeAliasDecl:
+    name: str
+    target_type: str
     span: SourceSpan | None = None
 
 
@@ -52,6 +65,7 @@ class QueryDecl:
     name: str
     input_type: Optional[str] = None
     output_type: Optional[str] = None
+    authorize_policy: Optional[str] = None
     span: SourceSpan | None = None
 
 
@@ -112,8 +126,33 @@ class FunctionDecl:
 
 
 @dataclass(slots=True)
+class InvariantDecl:
+    name: str
+    parameters: List[ParameterDecl] = field(default_factory=list)
+    expression: str = ""
+    span: SourceSpan | None = None
+
+
+@dataclass(slots=True)
+class ApiRouteDecl:
+    method: str
+    path: str
+    target: str
+    span: SourceSpan | None = None
+
+
+@dataclass(slots=True)
+class ApiDecl:
+    name: str
+    routes: List[ApiRouteDecl] = field(default_factory=list)
+    span: SourceSpan | None = None
+
+
+@dataclass(slots=True)
 class Module:
     name: Optional[str] = None
+    imports: List[ImportDecl] = field(default_factory=list)
+    type_aliases: List[TypeAliasDecl] = field(default_factory=list)
     schemas: List[SchemaDecl] = field(default_factory=list)
     commands: List[CommandDecl] = field(default_factory=list)
     events: List[EventDecl] = field(default_factory=list)
@@ -124,4 +163,6 @@ class Module:
     workflows: List[WorkflowDecl] = field(default_factory=list)
     handles: List[HandleDecl] = field(default_factory=list)
     functions: List[FunctionDecl] = field(default_factory=list)
+    invariants: List[InvariantDecl] = field(default_factory=list)
+    apis: List[ApiDecl] = field(default_factory=list)
     span: SourceSpan | None = None

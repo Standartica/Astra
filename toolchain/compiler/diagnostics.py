@@ -11,6 +11,7 @@ class Diagnostic:
     message: str
     line: int | None = None
     column: int | None = None
+    snippet: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -19,6 +20,7 @@ class Diagnostic:
             "message": self.message,
             "line": self.line,
             "column": self.column,
+            "snippet": self.snippet,
         }
 
 
@@ -26,8 +28,8 @@ class DiagnosticBag:
     def __init__(self) -> None:
         self.items: List[Diagnostic] = []
 
-    def add(self, level: str, code: str, message: str, line: int | None = None, column: int | None = None) -> None:
-        self.items.append(Diagnostic(level=level, code=code, message=message, line=line, column=column))
+    def add(self, level: str, code: str, message: str, line: int | None = None, column: int | None = None, snippet: str | None = None) -> None:
+        self.items.append(Diagnostic(level=level, code=code, message=message, line=line, column=column, snippet=snippet))
 
     def extend(self, values: Iterable[Diagnostic]) -> None:
         self.items.extend(values)

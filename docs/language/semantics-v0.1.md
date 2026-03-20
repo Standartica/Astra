@@ -14,3 +14,13 @@ Declares an immutable fact that has happened.
 
 ## `query`
 Declares a typed read operation.
+
+
+## Recent draft additions
+
+- `import` declarations and module-level dependency graph
+- `type` aliases for domain-specific value types
+- `query authorize PolicyName` binding
+- `invariant` declarations
+- `api` blocks with HTTP routes targeting `command` or `query`
+- source-aware diagnostics with line/column/snippet output

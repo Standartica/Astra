@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import List
 
 from .ast import (
+    ApiDecl,
+    ApiRouteDecl,
     CapabilityDecl,
     CommandDecl,
     EnumDecl,
@@ -11,12 +13,15 @@ from .ast import (
     FieldDecl,
     FunctionDecl,
     HandleDecl,
+    ImportDecl,
+    InvariantDecl,
     Module,
     ParameterDecl,
     PolicyDecl,
     QueryDecl,
     SchemaDecl,
     SourceSpan,
+    TypeAliasDecl,
     WorkflowDecl,
     WorkflowStep,
 )
@@ -70,7 +75,11 @@ class Parser:
 
         while self.current().kind != "EOF":
             kind = self.current().kind
-            if kind == "SCHEMA":
+            if kind == "IMPORT":
+                module.imports.append(self.parse_import())
+            elif kind == "TYPE":
+                module.type_aliases.append(self.parse_type_alias())
+            elif kind == "SCHEMA":
                 module.schemas.append(self.parse_field_block(SchemaDecl))
             elif kind == "COMMAND":
                 module.commands.append(self.parse_field_block(CommandDecl))
@@ -90,10 +99,13 @@ class Parser:
                 module.handles.append(self.parse_handle())
             elif kind == "FN":
                 module.functions.append(self.parse_function())
+            elif kind == "INVARIANT":
+                module.invariants.append(self.parse_invariant())
+            elif kind == "API":
+                module.apis.append(self.parse_api())
             else:
                 token = self.current()
                 raise ParseError(f"Unexpected token {token.kind} ({token.value!r}) at {token.line}:{token.column}")
-
         return module
 
     def parse_identifier_or_path(self) -> str:
@@ -112,6 +124,18 @@ class Parser:
                 break
         self.expect("RPAREN")
         return params
+
+    def parse_import(self) -> ImportDecl:
+        start = self.expect("IMPORT")
+        module_name = self.parse_identifier_or_path()
+        return ImportDecl(module_name=module_name, span=self.span_from(start, self.tokens[self.index - 1]))
+
+    def parse_type_alias(self) -> TypeAliasDecl:
+        start = self.expect("TYPE")
+        name = self.expect("IDENT").value
+        self.expect("EQUALS")
+        target = self.parse_identifier_or_path()
+        return TypeAliasDecl(name=name, target_type=target, span=self.span_from(start, self.tokens[self.index - 1]))
 
     def parse_field_block(self, decl_type):
         start = self.advance()
@@ -133,18 +157,23 @@ class Parser:
         self.expect("LBRACE")
         input_type = None
         output_type = None
+        authorize_policy = None
         while self.current().kind != "RBRACE":
-            key = self.expect("IDENT", "Expected query field name like input or output").value
+            if self.current().kind == "AUTHORIZE":
+                self.advance()
+                authorize_policy = self.expect("IDENT").value
+                continue
+            key_name = self.expect("IDENT", "Expected query field name like input or output").value
             self.expect("COLON")
             value = self.parse_identifier_or_path()
-            if key == "input":
+            if key_name == "input":
                 input_type = value
-            elif key == "output":
+            elif key_name == "output":
                 output_type = value
             else:
-                raise ParseError(f"Unknown query property {key!r} at {self.current().line}:{self.current().column}")
+                raise ParseError(f"Unknown query property {key_name!r} at {self.current().line}:{self.current().column}")
         end = self.expect("RBRACE")
-        return QueryDecl(name=name_tok.value, input_type=input_type, output_type=output_type, span=self.span_from(start, end))
+        return QueryDecl(name=name_tok.value, input_type=input_type, output_type=output_type, authorize_policy=authorize_policy, span=self.span_from(start, end))
 
     def parse_enum(self) -> EnumDecl:
         start = self.expect("ENUM")
@@ -247,6 +276,35 @@ class Parser:
         if self.current().kind == "LBRACE":
             self.skip_block()
         return FunctionDecl(name=name, parameters=parameters, return_type=return_type, purity=purity, effects=effects, span=self.span_from(start, self.tokens[self.index - 1]))
+
+    def parse_invariant(self) -> InvariantDecl:
+        start = self.expect("INVARIANT")
+        name = self.expect("IDENT").value
+        parameters = self.parse_parameters()
+        self.expect("LBRACE")
+        pieces: List[str] = []
+        while self.current().kind != "RBRACE":
+            pieces.append(self.advance().value)
+        end = self.expect("RBRACE")
+        return InvariantDecl(name=name, parameters=parameters, expression=" ".join(pieces).strip(), span=self.span_from(start, end))
+
+    def parse_api(self) -> ApiDecl:
+        start = self.expect("API")
+        name = self.expect("IDENT").value
+        self.expect("LBRACE")
+        routes: List[ApiRouteDecl] = []
+        while self.current().kind != "RBRACE":
+            route_start = self.current()
+            if self.current().kind not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+                token = self.current()
+                raise ParseError(f"Expected HTTP method in api block, got {token.kind} ({token.value!r}) at {token.line}:{token.column}")
+            method = self.advance().value
+            path = self.expect("STRING").value
+            self.expect("ARROW")
+            target = self.expect("IDENT").value
+            routes.append(ApiRouteDecl(method=method, path=path, target=target, span=self.span_from(route_start, self.tokens[self.index - 1])))
+        end = self.expect("RBRACE")
+        return ApiDecl(name=name, routes=routes, span=self.span_from(start, end))
 
 
 def parse_source(source: str) -> Module:

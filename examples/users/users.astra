@@ -1,5 +1,10 @@
 module users
 
+import shared
+
+type Email = String
+type UserId = Uuid
+
 schema User {
   id: UserId
   email: Email
@@ -29,10 +34,15 @@ event UserRegistered {
 query GetUserProfile {
   input: UserId
   output: User
+  authorize CanReadUser
 }
 
 policy CanReadUser(actor: Principal, userId: UserId) {
   require actor has ReadUsers
+}
+
+invariant ActiveUserRequiresEmail(user: User) {
+  user status implies email exists
 }
 
 workflow OnboardUser(userId: UserId) deterministic {
@@ -45,4 +55,9 @@ handle RegisterUser -> UserRegistered with effects [db.write, emit, clock, ids] 
 }
 
 fn normalizeEmail(value: String) -> Email pure {
+}
+
+api Users {
+  post "/users" -> RegisterUser
+  get "/users/{userId}" -> GetUserProfile
 }

@@ -13,34 +13,14 @@ class Token:
 
 
 KEYWORDS = {
-    "module",
-    "schema",
-    "command",
-    "event",
-    "query",
-    "enum",
-    "capability",
-    "policy",
-    "require",
-    "workflow",
-    "step",
-    "timeout",
-    "deterministic",
-    "handle",
-    "with",
-    "effects",
-    "fn",
-    "pure",
+    "module", "import", "type", "schema", "command", "event", "query", "authorize", "enum",
+    "capability", "policy", "require", "workflow", "step", "timeout", "deterministic",
+    "handle", "with", "effects", "fn", "pure", "invariant", "api", "get", "post",
+    "put", "patch", "delete",
 }
 SINGLE_CHAR = {
-    "{": "LBRACE",
-    "}": "RBRACE",
-    ":": "COLON",
-    "(": "LPAREN",
-    ")": "RPAREN",
-    "[": "LBRACKET",
-    "]": "RBRACKET",
-    ",": "COMMA",
+    "{": "LBRACE", "}": "RBRACE", ":": "COLON", "(": "LPAREN", ")": "RPAREN",
+    "[": "LBRACKET", "]": "RBRACKET", ",": "COMMA", "=": "EQUALS",
 }
 DOUBLE_CHAR = {"->": "ARROW"}
 
@@ -53,24 +33,42 @@ def tokenize(source: str) -> Iterator[Token]:
 
     while i < n:
         ch = source[i]
-
         if ch in " \t\r":
             i += 1
             col += 1
             continue
-
         if ch == "\n":
             i += 1
             line += 1
             col = 1
             continue
-
+        if ch == '"':
+            start_col = col
+            i += 1
+            col += 1
+            chars: list[str] = []
+            while i < n and source[i] != '"':
+                if source[i] == "\\" and i + 1 < n:
+                    chars.append(source[i + 1])
+                    i += 2
+                    col += 2
+                    continue
+                if source[i] == "\n":
+                    raise SyntaxError(f"Unterminated string at {line}:{start_col}")
+                chars.append(source[i])
+                i += 1
+                col += 1
+            if i >= n:
+                raise SyntaxError(f"Unterminated string at {line}:{start_col}")
+            i += 1
+            col += 1
+            yield Token("STRING", "".join(chars), line, start_col)
+            continue
         if ch == "/" and i + 1 < n and source[i + 1] == "/":
             while i < n and source[i] != "\n":
                 i += 1
                 col += 1
             continue
-
         if ch == "/" and i + 1 < n and source[i + 1] == "*":
             i += 2
             col += 2
@@ -87,20 +85,17 @@ def tokenize(source: str) -> Iterator[Token]:
             i += 2
             col += 2
             continue
-
         if i + 1 < n and source[i : i + 2] in DOUBLE_CHAR:
             value = source[i : i + 2]
             yield Token(DOUBLE_CHAR[value], value, line, col)
             i += 2
             col += 2
             continue
-
         if ch in SINGLE_CHAR:
             yield Token(SINGLE_CHAR[ch], ch, line, col)
             i += 1
             col += 1
             continue
-
         if ch.isalpha() or ch == "_":
             start = i
             start_col = col
@@ -111,7 +106,6 @@ def tokenize(source: str) -> Iterator[Token]:
             kind = value.upper() if value in KEYWORDS else "IDENT"
             yield Token(kind, value, line, start_col)
             continue
-
         raise SyntaxError(f"Unexpected character {ch!r} at {line}:{col}")
 
     yield Token("EOF", "", line, col)
